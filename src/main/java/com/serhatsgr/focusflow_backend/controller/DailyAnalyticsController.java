@@ -27,14 +27,15 @@ public class DailyAnalyticsController {
     public ResponseEntity<DailyReportResponseDto> getDailyReport(
             Principal principal,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        
-        String username = principal.getName();
-        
+
+        String email = principal.getName();
+
         // Gün başlangıcı 00:00:00 ve gün bitişi 23:59:59 hesaplaması
         LocalDateTime startOfDay = date.atStartOfDay();
         LocalDateTime endOfDay = date.atTime(LocalTime.MAX);
 
-        List<FocusSession> dailySessions = focusSessionRepository.findAllByUser_UsernameAndStartTimeUtcBetween(username, startOfDay, endOfDay);
+        List<FocusSession> dailySessions = focusSessionRepository.findAllByUser_EmailAndStartTimeUtcBetween(email,
+                startOfDay, endOfDay);
         DailyReportResponseDto report = dailyAnalyticsService.generateDailyReport(dailySessions);
 
         return ResponseEntity.ok(report);

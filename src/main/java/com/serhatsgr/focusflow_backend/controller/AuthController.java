@@ -49,7 +49,7 @@ public class AuthController {
     public ResponseEntity<ApiSuccess<AuthResponse>> login(
             @Valid @RequestBody AuthRequest request) {
 
-        AuthResponse response = authService.login(request.username(), request.password());
+        AuthResponse response = authService.login(request.email(), request.password());
         return ResponseEntity.ok(ApiSuccess.of("Giriş başarılı", response));
     }
 

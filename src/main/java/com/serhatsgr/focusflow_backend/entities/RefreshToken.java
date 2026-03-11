@@ -28,11 +28,11 @@ public class RefreshToken {
     private String token;
 
     /**
-     * Kullanıcı adı String olarak tutulur.
+     * Kullanıcı emaili String olarak tutulur.
      * İleride @ManyToOne User yapısına geçilebilir; şimdilik sade tutuyoruz.
      */
-    @Column(name = "username", nullable = false, length = 50)
-    private String username;
+    @Column(name = "email", nullable = false, length = 100)
+    private String email;
 
     @Column(nullable = false)
     private LocalDateTime expiryDate;
@@ -46,9 +46,9 @@ public class RefreshToken {
     /**
      * Tek kullanılacak constructor: token oluşturulurken kullanılır.
      */
-    public RefreshToken(String token, String username, LocalDateTime expiryDate) {
+    public RefreshToken(String token, String email, LocalDateTime expiryDate) {
         this.token = token;
-        this.username = username;
+        this.email = email;
         this.expiryDate = expiryDate;
         this.createdDate = LocalDateTime.now();
         this.used = false;

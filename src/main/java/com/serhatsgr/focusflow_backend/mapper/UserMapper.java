@@ -35,16 +35,15 @@ public class UserMapper {
                         .collect(Collectors.joining(", "))
                 : Role.ROLE_USER.getAuthority();
 
-        return CreateUserResponse.of(user.getUsername(), user.getEmail(), roles);
+        return CreateUserResponse.of(user.getEmail(), roles);
     }
 
     /**
      * DTO → Entity dönüşümü (harici kullanım için yardımcı).
      * Şifre hashleme bu metotta yapılmaz; çağıran servis sorumludur.
      */
-    public User toEntity(String username, String email, String encodedPassword, Role role) {
+    public User toEntity(String email, String encodedPassword, Role role) {
         return User.builder()
-                .username(username)
                 .email(email)
                 .password(encodedPassword)
                 .authorities(Set.of(role))

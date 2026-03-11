@@ -42,10 +42,10 @@ public class AuthService {
      *
      * @throws BaseException kimlik doğrulama başarısız olursa
      */
-    public AuthResponse login(String username, String password) {
+    public AuthResponse login(String email, String password) {
         try {
             Authentication authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(username, password));
+                    new UsernamePasswordAuthenticationToken(email, password));
             // authenticate() başarısız olursa AuthenticationException fırlatır;
             // isAuthenticated() kontrolü gereksiz (ölü kod) — burada yok.
 
@@ -55,7 +55,7 @@ public class AuthService {
         } catch (BadCredentialsException | UsernameNotFoundException e) {
             // Hata mesajını normalize et: saldırganlara kullanıcı varlığı bilgisi verme
             throw new BaseException(new ErrorMessage(
-                    MessageType.AUTHENTICATION_FAILED, "Geçersiz kullanıcı adı veya şifre"));
+                    MessageType.AUTHENTICATION_FAILED, "Geçersiz email veya şifre"));
         }
     }
 
@@ -65,8 +65,8 @@ public class AuthService {
      * @param refreshTokenValue istemcinin gönderdiği refresh token değeri
      */
     public AuthResponse refresh(String refreshTokenValue) {
-        String username = jwtService.refreshAccessToken(refreshTokenValue);
-        User user = userService.getUserByUsername(username);
+        String email = jwtService.refreshAccessToken(refreshTokenValue);
+        User user = userService.getUserByEmail(email);
         return buildAuthResponse(user);
     }
 
@@ -75,7 +75,7 @@ public class AuthService {
      * Rol çekme mantığı tek yerde merkezileştirildi.
      */
     private AuthResponse buildAuthResponse(User user) {
-        TokenPairDto tokenPair = jwtService.generateTokenPair(user.getUsername(), user.getAuthorities());
+        TokenPairDto tokenPair = jwtService.generateTokenPair(user.getEmail(), user.getAuthorities());
 
         String role = user.getAuthorities().stream()
                 .findFirst()
@@ -85,7 +85,7 @@ public class AuthService {
         return AuthResponse.of(
                 tokenPair.accessToken(),
                 tokenPair.refreshToken(),
-                user.getUsername(),
+                user.getEmail(),
                 role);
     }
 }

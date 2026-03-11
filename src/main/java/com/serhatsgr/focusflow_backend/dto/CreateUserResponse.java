@@ -6,10 +6,9 @@ package com.serhatsgr.focusflow_backend.dto;
  * Başarı/hata bilgisi ApiSuccess / GlobalExceptionHandler tarafından taşınır.
  */
 public record CreateUserResponse(
-        String username,
         String email,
         String role) {
-    public static CreateUserResponse of(String username, String email, String role) {
-        return new CreateUserResponse(username, email, role);
+    public static CreateUserResponse of(String email, String role) {
+        return new CreateUserResponse(email, role);
     }
 }

@@ -9,10 +9,10 @@ package com.serhatsgr.focusflow_backend.dto;
 public record AuthResponse(
         String accessToken,
         String refreshToken,
-        String username,
+        String email,
         String role) {
     public static AuthResponse of(String accessToken, String refreshToken,
-            String username, String role) {
-        return new AuthResponse(accessToken, refreshToken, username, role);
+            String email, String role) {
+        return new AuthResponse(accessToken, refreshToken, email, role);
     }
 }

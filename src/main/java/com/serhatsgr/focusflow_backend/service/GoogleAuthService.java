@@ -60,7 +60,7 @@ public class GoogleAuthService {
         User user = userRepository.findByEmail(email)
                 .orElseGet(() -> createNewGoogleUser(email, name, picture));
 
-        TokenPairDto tokenPair = jwtService.generateTokenPair(user.getUsername(), user.getAuthorities());
+        TokenPairDto tokenPair = jwtService.generateTokenPair(user.getEmail(), user.getAuthorities());
 
         String role = user.getAuthorities().stream()
                 .findFirst()
@@ -70,7 +70,7 @@ public class GoogleAuthService {
         return AuthResponse.of(
                 tokenPair.accessToken(),
                 tokenPair.refreshToken(),
-                user.getUsername(),
+                user.getEmail(),
                 role);
     }
 
@@ -106,23 +106,12 @@ public class GoogleAuthService {
 
     /**
      * Yeni Google kullanıcısı oluşturur.
-     *
-     * Username üretimi: UUID suffix ile döngüsel DB sorgusu yok.
-     * Format: "johndoe-a1b2c3"
      */
     private User createNewGoogleUser(String email, String name, String pictureUrl) {
         log.info("Yeni Google kullanıcısı oluşturuluyor: {}", email);
 
-        String safeName = (name != null && !name.isBlank())
-                ? name.replaceAll("[^a-zA-Z0-9]", "").toLowerCase()
-                : "user";
-
-        // UUID'nin ilk 6 karakteri ile deterministik ama çakışmasız username
-        String username = safeName + "-" + UUID.randomUUID().toString().substring(0, 6);
-
         User newUser = User.builder()
                 .email(email)
-                .username(username)
                 // Google kullanıcıları LOCAL şifre kullanmaz; encode edilmiş random UUID atanır
                 .password(passwordEncoder.encode(UUID.randomUUID().toString()))
                 .authorities(Set.of(Role.ROLE_USER))

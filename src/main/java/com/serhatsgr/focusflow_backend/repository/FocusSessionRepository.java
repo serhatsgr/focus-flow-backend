@@ -16,45 +16,46 @@ import java.util.UUID;
 @Repository
 public interface FocusSessionRepository extends JpaRepository<FocusSession, UUID> {
 
-        /**
-         * Kullanıcının belirli bir zaman aralığındaki oturumlarını interruptions ile
-         * birlikte getirir.
-         * JOIN FETCH → N+1 sorgusunu önler.
-         */
-        @Query("""
-                        SELECT DISTINCT fs FROM FocusSession fs
-                        LEFT JOIN FETCH fs.interruptions
-                        WHERE fs.user.id = :userId
-                          AND fs.startTimeUtc BETWEEN :start AND :end
-                        """)
-        List<FocusSession> findByUserIdAndStartTimeUtcBetweenFetchInterruptions(
-                        @Param("userId") Long userId,
-                        @Param("start") LocalDateTime start,
-                        @Param("end") LocalDateTime end);
+  /**
+   * Kullanıcının belirli bir zaman aralığındaki oturumlarını interruptions ile
+   * birlikte getirir.
+   * JOIN FETCH → N+1 sorgusunu önler.
+   */
+  @Query("""
+      SELECT DISTINCT fs FROM FocusSession fs
+      LEFT JOIN FETCH fs.interruptions
+      WHERE fs.user.id = :userId
+        AND fs.startTimeUtc BETWEEN :start AND :end
+      """)
+  List<FocusSession> findByUserIdAndStartTimeUtcBetweenFetchInterruptions(
+      @Param("userId") Long userId,
+      @Param("start") LocalDateTime start,
+      @Param("end") LocalDateTime end);
 
-        /**
-         * Kullanıcının ONGOING veya PAUSED durumunda oturumu var mı?
-         * startSession() öncesinde çakışma kontrolü için kullanılır.
-         */
-        boolean existsByUserAndStatus(User user, SessionStatus status);
+  /**
+   * Kullanıcının ONGOING veya PAUSED durumunda oturumu var mı?
+   * startSession() öncesinde çakışma kontrolü için kullanılır.
+   */
+  boolean existsByUserAndStatus(User user, SessionStatus status);
 
-        /**
-         * Belirli bir session'ı kullanıcı ID'si ile birlikte getirir.
-         * Sahiplik doğrulaması: kullanıcının sadece kendi oturumuna erişmesini
-         * garantiler.
-         *
-         * @param sessionId Güncellenecek oturumun UUID'si
-         * @param userId    JWT'den alınan doğrulanmış kullanıcı ID'si
-         */
-        @Query("""
-                        SELECT fs FROM FocusSession fs
-                        LEFT JOIN FETCH fs.interruptions
-                        WHERE fs.id = :sessionId
-                          AND fs.user.id = :userId
-                        """)
-        Optional<FocusSession> findByIdAndUserId(
-                        @Param("sessionId") UUID sessionId,
-                        @Param("userId") Long userId);
+  /**
+   * Belirli bir session'ı kullanıcı ID'si ile birlikte getirir.
+   * Sahiplik doğrulaması: kullanıcının sadece kendi oturumuna erişmesini
+   * garantiler.
+   *
+   * @param sessionId Güncellenecek oturumun UUID'si
+   * @param userId    JWT'den alınan doğrulanmış kullanıcı ID'si
+   */
+  @Query("""
+      SELECT fs FROM FocusSession fs
+      LEFT JOIN FETCH fs.interruptions
+      WHERE fs.id = :sessionId
+        AND fs.user.id = :userId
+      """)
+  Optional<FocusSession> findByIdAndUserId(
+      @Param("sessionId") UUID sessionId,
+      @Param("userId") Long userId);
 
-        List<FocusSession> findAllByUser_UsernameAndStartTimeUtcBetween(String username, LocalDateTime startOfDay, LocalDateTime endOfDay);
+  List<FocusSession> findAllByUser_EmailAndStartTimeUtcBetween(String email, LocalDateTime startOfDay,
+      LocalDateTime endOfDay);
 }

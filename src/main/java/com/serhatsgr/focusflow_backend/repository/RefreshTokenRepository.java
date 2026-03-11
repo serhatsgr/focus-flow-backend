@@ -19,7 +19,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
      * Kullanıcının aktif (kullanılmamış) token'larını getirir.
      * Yeni token üretiminden önce geçerlilik kontrol için kullanılır.
      */
-    Optional<RefreshToken> findByUsernameAndUsedFalse(String username);
+    Optional<RefreshToken> findByEmailAndUsedFalse(String email);
 
     /**
      * Süresi dolmuş tüm token'ları temizler (scheduled job için).
@@ -34,7 +34,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
      */
     @Modifying
     @Transactional
-    void deleteByUsername(String username);
+    void deleteByEmail(String email);
 
     /**
      * Yeni token üretiminden önce kullanıcının tüm eski token'larını
@@ -42,6 +42,6 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
      */
     @Modifying
     @Transactional
-    @Query("UPDATE RefreshToken rt SET rt.used = true WHERE rt.username = :username AND rt.used = false")
-    void markAllAsUsedByUsername(String username);
+    @Query("UPDATE RefreshToken rt SET rt.used = true WHERE rt.email = :email AND rt.used = false")
+    void markAllAsUsedByEmail(String email);
 }

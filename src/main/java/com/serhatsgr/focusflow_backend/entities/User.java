@@ -3,6 +3,7 @@ package com.serhatsgr.focusflow_backend.entities;
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.security.core.userdetails.UserDetails;
+import java.lang.String;
 
 import java.util.Collection;
 import java.util.HashSet;
@@ -45,9 +46,6 @@ public class User implements UserDetails {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column(nullable = false, unique = true, length = 50)
-    private String username;
 
     @Column(nullable = false, unique = true, length = 100)
     private String email;
@@ -137,5 +135,10 @@ public class User implements UserDetails {
     @Override
     public boolean isEnabled() {
         return enabled;
+    }
+
+    @Override
+    public String getUsername() {
+        return email;
     }
 }

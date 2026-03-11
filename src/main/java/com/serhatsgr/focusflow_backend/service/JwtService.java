@@ -72,18 +72,18 @@ public class JwtService {
     /**
      * Access token üretir.
      *
-     * @param username    JWT subject (kullanıcı adı)
+     * @param email       JWT subject (kullanıcı emaili)
      * @param authorities Kullanıcı rolleri — çağıran servis tarafından sağlanır.
      *                    JwtService artık DB'ye gitmez.
      */
-    public String generateAccessToken(String username, Collection<? extends GrantedAuthority> authorities) {
+    public String generateAccessToken(String email, Collection<? extends GrantedAuthority> authorities) {
         List<String> roles = authorities.stream()
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.toList());
 
         return Jwts.builder()
                 .claim("authorities", roles)
-                .subject(username)
+                .subject(email)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + accessTokenExpirySeconds * 1_000))
                 .signWith(getSignKey()) // 0.12.x: algoritma otomatik seçilir
@@ -107,7 +107,7 @@ public class JwtService {
         return resolver.apply(extractAllClaims(token));
     }
 
-    public String extractUsername(String token) {
+    public String extractEmail(String token) {
         return extractClaim(token, Claims::getSubject);
     }
 
@@ -123,8 +123,8 @@ public class JwtService {
      * Access token'ı doğrular: imza geçerli mi ve kullanıcıyla eşleşiyor mu?
      */
     public boolean validateToken(String token, UserDetails userDetails) {
-        final String username = extractUsername(token);
-        return username.equals(userDetails.getUsername()) && !isTokenExpired(token);
+        final String email = extractEmail(token);
+        return email.equals(userDetails.getUsername()) && !isTokenExpired(token);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -136,14 +136,14 @@ public class JwtService {
      * Önceki aktif token'lar "kullanıldı" olarak işaretlenir.
      */
     @Transactional
-    public String generateRefreshToken(String username) {
+    public String generateRefreshToken(String email) {
         // Önce tüm aktif (kullanılmamış) token'ları iptal et
-        refreshTokenRepository.markAllAsUsedByUsername(username);
+        refreshTokenRepository.markAllAsUsedByEmail(email);
 
         String tokenValue = UUID.randomUUID() + "-" + System.currentTimeMillis();
         LocalDateTime expiryDate = LocalDateTime.now().plusMinutes(refreshTokenExpiryMinutes);
 
-        RefreshToken refreshToken = new RefreshToken(tokenValue, username, expiryDate);
+        RefreshToken refreshToken = new RefreshToken(tokenValue, email, expiryDate);
         refreshTokenRepository.save(refreshToken);
 
         return tokenValue;
@@ -152,23 +152,23 @@ public class JwtService {
     /**
      * Access + Refresh token çifti üretir.
      *
-     * @param username    Kullanıcı adı
+     * @param email       Kullanıcı emaili
      * @param authorities Kullanıcı rolleri (DB'den gelmez, çağıran tarafından
      *                    verilir)
      */
-    public TokenPairDto generateTokenPair(String username, Collection<? extends GrantedAuthority> authorities) {
-        String accessToken = generateAccessToken(username, authorities);
-        String refreshToken = generateRefreshToken(username);
+    public TokenPairDto generateTokenPair(String email, Collection<? extends GrantedAuthority> authorities) {
+        String accessToken = generateAccessToken(email, authorities);
+        String refreshToken = generateRefreshToken(email);
         return new TokenPairDto(accessToken, refreshToken);
     }
 
     /**
-     * Refresh token'ı doğrular ve kullanıcı adını döner.
+     * Refresh token'ı doğrular ve kullanıcı emailini döner.
      * Race condition'ı önlemek için: refresh token DB'de geçerli hale getirildikten
      * SONRA
      * "kullanıldı" işaretlenir. Transactional bütünlük sağlanır.
      *
-     * @return Refresh token'a ait kullanıcı adı
+     * @return Refresh token'a ait kullanıcı emaili
      */
     @Transactional
     public String refreshAccessToken(String refreshTokenValue) {
@@ -183,19 +183,19 @@ public class JwtService {
                     MessageType.UNAUTHORIZED, "Refresh token geçersiz veya süresi dolmuş"));
         }
 
-        // Geçerli — önce kullanıldı işaretle, sonra kullanıcı adını dön
+        // Geçerli — önce kullanıldı işaretle, sonra kullanıcı emailini dön
         refreshToken.setUsed(true);
         refreshTokenRepository.save(refreshToken);
 
-        return refreshToken.getUsername();
+        return refreshToken.getEmail();
     }
 
     /**
      * Kullanıcının tüm refresh token'larını iptal eder (logout işlemi).
      */
     @Transactional
-    public void revokeAllRefreshTokens(String username) {
-        refreshTokenRepository.deleteByUsername(username);
+    public void revokeAllRefreshTokens(String email) {
+        refreshTokenRepository.deleteByEmail(email);
     }
 
     /**

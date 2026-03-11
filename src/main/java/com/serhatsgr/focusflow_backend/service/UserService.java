@@ -52,9 +52,9 @@ public class UserService implements UserDetailsService {
         // ──────────────────────────────────────────────────────────────────────────
 
         @Override
-        public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-                return userRepository.findByUsername(username)
-                                .orElseThrow(() -> new UsernameNotFoundException("Kullanıcı bulunamadı: " + username));
+        public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
+                return userRepository.findByEmail(email)
+                                .orElseThrow(() -> new UsernameNotFoundException("Kullanıcı bulunamadı: " + email));
         }
 
         // ──────────────────────────────────────────────────────────────────────────
@@ -67,19 +67,13 @@ public class UserService implements UserDetailsService {
          */
         @Transactional
         public CreateUserResponse createUser(CreateUserRequest request) {
-                log.info("Yeni kullanıcı oluşturuluyor: {}", request.username());
-
-                if (userRepository.findByUsername(request.username()).isPresent()) {
-                        throw new BaseException(new ErrorMessage(
-                                        MessageType.DUPLICATE_RESOURCE, "Bu kullanıcı adı zaten kullanımda"));
-                }
+                log.info("Yeni kullanıcı oluşturuluyor: {}", request.email());
                 if (userRepository.findByEmail(request.email()).isPresent()) {
                         throw new BaseException(new ErrorMessage(
                                         MessageType.DUPLICATE_RESOURCE, "Bu email adresi zaten kullanımda"));
                 }
 
                 User user = User.builder()
-                                .username(request.username())
                                 .email(request.email())
                                 .password(passwordEncoder.encode(request.password()))
                                 .authorities(Set.of(Role.ROLE_USER)) // Sabit rol — güvenlik gereği
@@ -94,7 +88,7 @@ public class UserService implements UserDetailsService {
                 User saved = userRepository.save(user);
                 log.info("Kullanıcı oluşturuldu: id={}", saved.getId());
 
-                return CreateUserResponse.of(saved.getUsername(), saved.getEmail(), Role.ROLE_USER.getAuthority());
+                return CreateUserResponse.of(saved.getEmail(), Role.ROLE_USER.getAuthority());
         }
 
         // ──────────────────────────────────────────────────────────────────────────
@@ -118,10 +112,10 @@ public class UserService implements UserDetailsService {
          * Dahili kullanım: entity döner (servis katmanı içi).
          * Controller'a ya da dışarıya asla entity çıkmaz.
          */
-        public User getUserByUsername(String username) {
-                return userRepository.findByUsername(username)
+        public User getUserByEmail(String email) {
+                return userRepository.findByEmail(email)
                                 .orElseThrow(() -> new BaseException(new ErrorMessage(
-                                                MessageType.RESOURCE_NOT_FOUND, "Kullanıcı bulunamadı: " + username)));
+                                                MessageType.RESOURCE_NOT_FOUND, "Kullanıcı bulunamadı: " + email)));
         }
 
         // ──────────────────────────────────────────────────────────────────────────
@@ -129,27 +123,21 @@ public class UserService implements UserDetailsService {
         // ──────────────────────────────────────────────────────────────────────────
 
         /**
-         * Kullanıcı adı ve email günceller.
+         * Email günceller.
          * Dönüş tipi UserDto — entity asla Controller'a çıkmaz.
          */
         @Transactional
-        public UserDto updateUser(String currentUsername, UpdateUserRequest request) {
-                User user = userRepository.findByUsername(currentUsername)
+        public UserDto updateUser(String currentEmail, UpdateUserRequest request) {
+                User user = userRepository.findByEmail(currentEmail)
                                 .orElseThrow(() -> new BaseException(new ErrorMessage(
                                                 MessageType.RESOURCE_NOT_FOUND, "Kullanıcı bulunamadı")));
 
-                if (!user.getUsername().equals(request.username()) &&
-                                userRepository.findByUsername(request.username()).isPresent()) {
-                        throw new BaseException(new ErrorMessage(
-                                        MessageType.DUPLICATE_RESOURCE, "Bu kullanıcı adı zaten kullanımda"));
-                }
                 if (!user.getEmail().equals(request.email()) &&
                                 userRepository.findByEmail(request.email()).isPresent()) {
                         throw new BaseException(new ErrorMessage(
                                         MessageType.DUPLICATE_RESOURCE, "Bu email adresi zaten kullanımda"));
                 }
 
-                user.setUsername(request.username());
                 user.setEmail(request.email());
                 return toDto(userRepository.save(user));
         }
@@ -196,8 +184,8 @@ public class UserService implements UserDetailsService {
         }
 
         @Transactional
-        public void deleteUserByUsername(String username) {
-                User user = userRepository.findByUsername(username)
+        public void deleteUserByEmail(String email) {
+                User user = userRepository.findByEmail(email)
                                 .orElseThrow(() -> new BaseException(new ErrorMessage(
                                                 MessageType.RESOURCE_NOT_FOUND, "Kullanıcı bulunamadı")));
                 userRepository.deleteById(user.getId());
@@ -211,7 +199,7 @@ public class UserService implements UserDetailsService {
                 Set<String> roles = user.getAuthorities().stream()
                                 .map(a -> a.getAuthority())
                                 .collect(Collectors.toSet());
-                return new UserDto(user.getId(), user.getUsername(), user.getEmail(),
+                return new UserDto(user.getId(), user.getEmail(),
                                 user.isEnabled(), roles, null);
         }
 }
