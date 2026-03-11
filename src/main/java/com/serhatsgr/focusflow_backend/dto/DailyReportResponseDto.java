@@ -1,0 +1,21 @@
+package com.serhatsgr.focusflow_backend.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.util.List;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class DailyReportResponseDto {
+    private String dateStr;
+    private String generalStatus;
+    private String generalStatusDetail;
+    private List<CognitiveLoadPointDto> graphData;
+    private List<DailySessionItemDto> sessions;
+    private String analysisText;
+}

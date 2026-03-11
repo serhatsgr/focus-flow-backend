@@ -55,4 +55,6 @@ public interface FocusSessionRepository extends JpaRepository<FocusSession, UUID
         Optional<FocusSession> findByIdAndUserId(
                         @Param("sessionId") UUID sessionId,
                         @Param("userId") Long userId);
+
+        List<FocusSession> findAllByUser_UsernameAndStartTimeUtcBetween(String username, LocalDateTime startOfDay, LocalDateTime endOfDay);
 }
