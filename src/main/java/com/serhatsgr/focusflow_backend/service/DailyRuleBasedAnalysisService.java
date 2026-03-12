@@ -46,14 +46,15 @@ public class DailyRuleBasedAnalysisService {
         }
     }
 
-    public String generateFullAnalysisText(double morningScore, double afternoonScore, int morningCount,
+    public String generateFullAnalysisText(double averageScore, double morningScore, double afternoonScore,
+            int morningCount,
             int afternoonCount, int totalDurationMinutes, int totalInterruptions, int sessionCount, long seed) {
         Random seededRandom = new Random(seed);
 
         String temporalText = getTemporalInsight(morningScore, afternoonScore, morningCount, afternoonCount,
                 seededRandom);
-        String volumeText = getVolumeInsight(totalDurationMinutes, seededRandom);
-        String coachingText = getCoachingInsight(totalInterruptions, sessionCount, seededRandom);
+        String volumeText = getVolumeInsight(totalDurationMinutes, averageScore, seededRandom);
+        String coachingText = getCoachingInsight(totalInterruptions, sessionCount, averageScore, seededRandom);
 
         List<String> volumeTransitions = List.of(
                 "Bununla birlikte günlük hacmini de değerlendirelim.",
@@ -99,23 +100,31 @@ public class DailyRuleBasedAnalysisService {
                 "Kognitif yük dağılımın gün içine eşit yayılmış, sürdürülebilir bir nöronal tempo (zihinsel kararlılık) oluşturmuşsun.",
                 "Prefrontal yürütücü işlevlerin gün boyunca sabit bir frekansta çalışarak sana sarsılmaz bir kararlılık sağladı.",
                 "Düz bir nöro-verimlilik platosunda seyrettin; ne ani bir bilişsel tükenmişlik hissettin ne de yersiz bir gerginlik yaşadın.");
-        List<String> onlyMorningPool = List.of(
+        List<String> onlyMorningProductivePool = List.of(
                 "Bugün derin çalışma bloklarını erken bitirdin. Günün geri kalanında zihnine toparlanma (recovery) izni verebilirsin.",
                 "Odak eforunu yalnızca sabah saatlerine topladın. Öğleden sonrayı bilişsel rezervlerini (zihinsel enerjini) yenilemek için kullanıyorsun.",
-                "Günün erken bölümünde yüksek verim gösterdin, zihinsel deponu erkenden tüketmek sirkadiyen ritminle uyumlu bir strateji olabilir.",
-                "Sabahın o taze ve bölünmemiş nöral ortamını çok iyi kullandın, günün geri kalanını prefrontal korteksinin (odak merkezinin) dinlenmesine ayırabilirsin.",
-                "Kognitif rezervlerini günün başlangıcında tamamen yönettin; bu da hızlı ve çevik bir başarı getirdi.");
-        List<String> onlyAfternoonPool = List.of(
+                "Günün erken bölümünde yüksek verim gösterdin, zihinsel deponu erkenden tüketmek sirkadiyen ritminle uyumlu bir strateji olabilir.");
+
+        List<String> onlyMorningUnproductivePool = List.of(
+                "Sabah saatlerinde masaya oturma iradesi göstersen de, prefrontal kapasiten (odak merkezin) bu seanslarda çok dağınık ve isteksizdi.",
+                "Zihinsel enerjini sadece günün ilk yarısında harcadın ama skorlardan anladığımız kadarıyla 'derin çalışma' bölgesine ulaşılamamış.",
+                "Günün açılışını yapsan da bilişsel akış zayıftı. Masada geçen süre her zaman odaklı geçen süre anlamına gelmiyor.");
+
+        List<String> onlyAfternoonProductivePool = List.of(
                 "Güne geç başlasan da öğleden sonraki bloklarda hiper-odak evresine girmeyi başardın.",
                 "Bilişsel uyanışın günün ikinci yarısında gerçekleşti, akşamüstüne doğru nöronal ağların (bilgi işlem yolların) tam kapasiteye ulaştı.",
-                "Sabah saatlerini es geçip tüm zihinsel yükü günün ikinci yarısına bıraktın ve sirkadiyen ritminle uyumlu olarak başarıyla yönettin.",
-                "Biyolojik saatinin sana ancak öğlen sonrası yeşil ışık yaktığı bu günde prefrontal kapasiteni (odak merkezini) yüksek perdeden açtın.",
-                "Gecikmeli başlayan bir efor olsa da, ikinci yarıda yakaladığın bilişsel akış (flow) sabahın eksikliğini tamamen telafi etti.");
+                "Sabah saatlerini es geçip tüm zihinsel yükü günün ikinci yarısına bıraktın ve sirkadiyen ritminle uyumlu olarak başarıyla yönettin.");
+
+        List<String> onlyAfternoonUnproductivePool = List.of(
+                "Günün ikinci yarısında masaya oturmayı başarsan da, prefrontal korteksin (odak merkezin) bu efora yanıt verememiş. Süreyi doldurmak derin çalışmak anlamına gelmez.",
+                "Oturumlarını günün sonlarına bıraktın ama zihinsel enerji çok düşüktü; kognitif bir direnç (zihinsel isteksizlik) durumu söz konusu.",
+                "Öğleden sonraki oturumların skorları zayıf. Nöronal yolların yavaş çalışıyor, zihnen göreve bir türlü 'giriş' yapamamışsın.");
 
         if (morningCount > 0 && afternoonCount == 0) {
-            return getRandom(onlyMorningPool, random);
+            return getRandom(morningScore >= 60 ? onlyMorningProductivePool : onlyMorningUnproductivePool, random);
         } else if (morningCount == 0 && afternoonCount > 0) {
-            return getRandom(onlyAfternoonPool, random);
+            return getRandom(afternoonScore >= 60 ? onlyAfternoonProductivePool : onlyAfternoonUnproductivePool,
+                    random);
         } else {
             // İki tarafta da oturum varsa mevcut kıyaslama mantığını çalıştır
             if (Math.abs(morningScore - afternoonScore) <= 5.0) {
@@ -128,7 +137,7 @@ public class DailyRuleBasedAnalysisService {
         }
     }
 
-    private String getVolumeInsight(int totalDurationMinutes, Random random) {
+    private String getVolumeInsight(int totalDurationMinutes, double averageScore, Random random) {
         if (totalDurationMinutes > 240) {
             List<String> heavyLoadPool = List.of(
                     "Bugün nöronal ağlarını (beynindeki bilgi işlem yollarını) ciddi şekilde yordun. Yoğun mesainin ardından uyku kalitene ekstra dikkat etmelisin.",
@@ -146,6 +155,13 @@ public class DailyRuleBasedAnalysisService {
                     "Nöronal ağlarını rölantide çalıştırdın. Zihnindeki potansiyel enerji zorlu problemler için yakılmayı bekliyor.");
             return getRandom(lightLoadPool, random);
         } else {
+            if (averageScore < 60) {
+                List<String> strugglingVolumePool = List.of(
+                        "Masada geçirdiğin süre makul olsa da zihnen orada değildin. Nöronal ağların rölantide kalmış, kognitif bir direnç (zihinsel isteksizlik) yaşamışsın.",
+                        "Fiziksel oturma süren optimal görünse de, odak kaliten dipsiz kuyu gibiydi. Zihnin görevden inanılmaz derecede koptu.",
+                        "Görünürde başarılı bir mesai saati, ama zihinsel çıktın asgari düzeyde. Zamanın hakkını veren derin bir çalışma yapamamışsın.");
+                return getRandom(strugglingVolumePool, random);
+            }
             List<String> optimalLoadPool = List.of(
                     "Zihinsel kapasiteni (kognitif eşiğini) aşırı zorlamadan, sürdürülebilir bir günlük efor sarf ettin.",
                     "Nöro-verimlilik açısından ideal hacimde bir gündü. Bilişsel sınırlarını koruyarak dengeli çalıştın.",
@@ -156,7 +172,7 @@ public class DailyRuleBasedAnalysisService {
         }
     }
 
-    private String getCoachingInsight(int totalInterruptions, int sessionCount, Random random) {
+    private String getCoachingInsight(int totalInterruptions, int sessionCount, double averageScore, Random random) {
         if (sessionCount == 0)
             return "";
 
@@ -170,6 +186,12 @@ public class DailyRuleBasedAnalysisService {
                     "Bağlam değişiminin (dikkat dağılmasının) görünmez faturasını ödedin. Bölünmüş dikkat, bilişsel kaynakların en sinsi katilidir.",
                     "Kognitif yükün kesintiler nedeniyle çok dağıldı. Zihnini çevresel tetikleyicilerden profesyonelce izole etmeyi hedefle.");
             return getRandom(highDistractionPool, random);
+        } else if (averageScore < 60) {
+            List<String> daydreamingPool = List.of(
+                    "Dış dünyadan görünürde bir kesinti almasan da, içsel odaklanma kaliten (zihinsel akışın) oldukça düşüktü. Yarın STRICT modun acımasız disiplinine ihtiyacın var.",
+                    "Bağlam değişimi yaşamadın ama bilişsel skorların dibe vurdu. Masada oturan fiziksel bedenin ile, hayallere dalan zihnin arasındaki makası acilen kapatmalısın.",
+                    "Telefonuna uzanmadın ama zihnin sürekli geçmişe veya geleceğe savruldu. Gizli dikkat yitimini (internal distraction) kesmezsen verimin artmaz.");
+            return getRandom(daydreamingPool, random);
         } else if (totalInterruptions == 0) {
             List<String> laserFocusPool = List.of(
                     "Sıfır kesintiyle harika bir disiplin sergiledin. Bu bilişsel izolasyon mimarisini aynen korumalısın.",
