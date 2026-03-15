@@ -1,6 +1,8 @@
 package com.serhatsgr.focusflow_backend.controller;
 
+import com.serhatsgr.focusflow_backend.dto.WeeklyAiResponseDto;
 import com.serhatsgr.focusflow_backend.dto.WeeklyHeatmapResponseDto;
+import com.serhatsgr.focusflow_backend.service.WeeklyAiCoachService;
 import com.serhatsgr.focusflow_backend.service.WeeklyAnalyticsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -19,6 +21,7 @@ import java.time.LocalDate;
 public class WeeklyAnalyticsController {
 
     private final WeeklyAnalyticsService weeklyAnalyticsService;
+    private final WeeklyAiCoachService weeklyAiCoachService;
 
     @GetMapping("/heatmap")
     public ResponseEntity<WeeklyHeatmapResponseDto> getWeeklyHeatmap(
@@ -28,6 +31,17 @@ public class WeeklyAnalyticsController {
 
         String email = principal.getName();
         WeeklyHeatmapResponseDto response = weeklyAnalyticsService.getWeeklyHeatmap(email, referenceDate, timezone);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/ai-summary")
+    public ResponseEntity<WeeklyAiResponseDto> getWeeklyAiSummary(
+            Principal principal,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate referenceDate) {
+
+        String email = principal.getName();
+        WeeklyAiResponseDto response = weeklyAiCoachService.generateWeeklyAnalysis(email, referenceDate);
 
         return ResponseEntity.ok(response);
     }
