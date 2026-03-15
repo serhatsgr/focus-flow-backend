@@ -1,6 +1,9 @@
 package com.serhatsgr.focusflow_backend.service;
 
+import com.serhatsgr.focusflow_backend.dto.BulkSyncRequestDto;
+import com.serhatsgr.focusflow_backend.dto.BulkSyncResponseDto;
 import com.serhatsgr.focusflow_backend.dto.InterruptionRequestDto;
+import com.serhatsgr.focusflow_backend.dto.OfflineSessionDto;
 import com.serhatsgr.focusflow_backend.dto.SessionCompleteRequestDto;
 import com.serhatsgr.focusflow_backend.dto.SessionCompleteResponseDto;
 import com.serhatsgr.focusflow_backend.dto.SessionStartRequestDto;
@@ -9,6 +12,8 @@ import com.serhatsgr.focusflow_backend.dto.SessionStatusUpdateRequestDto;
 import com.serhatsgr.focusflow_backend.dto.SessionSummaryResponseDto;
 import com.serhatsgr.focusflow_backend.dto.SessionTimelineResponseDto;
 import com.serhatsgr.focusflow_backend.dto.InterruptionTimelineItemDto;
+import com.serhatsgr.focusflow_backend.dto.SyncResultItemDto;
+import com.serhatsgr.focusflow_backend.entities.FocusMode;
 import com.serhatsgr.focusflow_backend.entities.FocusSession;
 import com.serhatsgr.focusflow_backend.entities.Interruption;
 import com.serhatsgr.focusflow_backend.entities.InterruptionType;
@@ -18,6 +23,8 @@ import com.serhatsgr.focusflow_backend.exception.BaseException;
 import com.serhatsgr.focusflow_backend.exception.ErrorMessage;
 import com.serhatsgr.focusflow_backend.exception.MessageType;
 import com.serhatsgr.focusflow_backend.repository.FocusSessionRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -26,9 +33,14 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
+
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
+import java.util.Set;
 
 /**
  * Odaklanma oturumu iş mantığı servisi.
@@ -41,21 +53,154 @@ import java.util.UUID;
 @Service
 public class SessionService {
 
+    private static final Logger log = LoggerFactory.getLogger(SessionService.class);
+
     private final FocusSessionRepository focusSessionRepository;
     private final FocusScoreCalculatorService focusScoreCalculatorService;
     private final RuleBasedAnalysisService ruleBasedAnalysisService;
 
+    private final Validator validator;
+
     public SessionService(FocusSessionRepository focusSessionRepository,
             FocusScoreCalculatorService focusScoreCalculatorService,
-            RuleBasedAnalysisService ruleBasedAnalysisService) {
+            RuleBasedAnalysisService ruleBasedAnalysisService, Validator validator) {
         this.focusSessionRepository = focusSessionRepository;
         this.focusScoreCalculatorService = focusScoreCalculatorService;
         this.ruleBasedAnalysisService = ruleBasedAnalysisService;
+        this.validator = validator;
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // Oturum Başlatma
+    // Toplu Offline Senkronizasyon (Bulk Sync)
     // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Flutter'ın offline iken biriktirdiği oturumları toplu olarak işler.
+     *
+     * Partial Success Prensibi:
+     * Bir oturumun kaydedilmesi başarısız olursa yalnızca o oturum FAILED olarak
+     * işaretlenir; diğer oturumlar etkilenmez. Her oturum kendi try-catch bloğuna
+     * sahiptir ve birbirinden bağımsız transaction'larla işlenir.
+     *
+     * Tasarım Notu:
+     * - Toplu işlemde her oturum @Transactional(NEW) yerine bu metot dışında
+     *   saveAndFlush ile hemen commit edilir. Böylece bir oturumun rollback'i
+     *   diğerlerini geri almaz.
+     *
+     * @param user    Kimlik doğrulaması yapılmış kullanıcı (Controller'dan alınır)
+     * @param request Senkronize edilecek oturumların listesi
+     * @return Detaylı sonuç özeti (kaç başarılı, kaç başarısız, her birinin ID'si)
+     */
+    @Transactional
+    public BulkSyncResponseDto syncOfflineSessions(User user, BulkSyncRequestDto request) {
+        List<SyncResultItemDto> results = new ArrayList<>();
+        int successCount = 0;
+        int failedCount = 0;
+
+        for (OfflineSessionDto dto : request.sessions()) {
+            try {
+                Set<ConstraintViolation<OfflineSessionDto>> violations = validator.validate(dto);
+                if (!violations.isEmpty()) {
+                    String errorMsg = violations.iterator().next().getMessage();
+                    log.warn("Oturum doğrulama hatası. Local ID: {} - Hata: {}", dto.localId(), errorMsg);
+
+                    results.add(SyncResultItemDto.builder()
+                            .localId(dto.localId())
+                            .serverId(null)
+                            .status("FAILED")
+                            .errorMessage(errorMsg)
+                            .build());
+                    failedCount++;
+                    continue; // Hatalıysa döngünün sonuna inme, bir sonraki oturuma geç!
+                }
+
+                FocusMode mode;
+                try {
+                    mode = dto.mode() != null ? FocusMode.valueOf(dto.mode().toUpperCase()) : FocusMode.STRICT;
+                } catch (IllegalArgumentException e) {
+                    throw new RuntimeException("Geçersiz FocusMode: " + dto.mode());
+                }
+
+                // ── Entity inşası ────────────────────────────────────────────
+                FocusSession session = FocusSession.builder()
+                        .user(user)
+                        .topic(dto.topic())
+                        .mode(mode)
+                        .startTimeUtc(dto.startTimeUtc())
+                        .endTimeUtc(dto.endTimeUtc())
+                        .actualDurationMinutes(dto.actualDurationMinutes())
+                        .plannedDurationMinutes(dto.plannedDurationMinutes())
+                        .totalDurationMinutes(dto.durationMinutes()) // Legacy alan veya durationMinutes total olarak tutulabilir
+                        .status(SessionStatus.COMPLETED)
+                        .build();
+
+                // ── Kesintileri eşle ─────────────────────────────────────────
+                if (dto.interruptions() != null && !dto.interruptions().isEmpty()) {
+                    List<Interruption> interruptions = dto.interruptions().stream()
+                            .map(i -> buildInterruption(i, session))
+                            .toList();
+                    session.getInterruptions().addAll(interruptions);
+
+                    double totalRecovery = dto.interruptions().stream()
+                            .mapToDouble(i -> i.recoveryTimeSeconds() != null ? i.recoveryTimeSeconds() : 0.0)
+                            .sum();
+                    session.setAvgRecoveryTimeSeconds(totalRecovery / dto.interruptions().size());
+                } else {
+                    session.setAvgRecoveryTimeSeconds(0.0);
+                }
+
+                // ── Giyilebilir cihaz verisi ─────────────────────────────────
+                if (Boolean.TRUE.equals(dto.hasWearableData())) {
+                    session.setHasWearableData(true);
+                    session.setAvgHeartRate(dto.avgHeartRate());
+                    session.setHrVariance(dto.hrVariance());
+                } else {
+                    session.setHasWearableData(false);
+                }
+
+                // ── Skor hesaplama ve kural tabanlı analiz ───────────────────
+                focusScoreCalculatorService.calculateAndSetScores(session);
+                String analysisText = ruleBasedAnalysisService.generateSessionAnalysis(session);
+                session.setAiAnalysisResult(analysisText);
+
+                // ── Kaydet ───────────────────────────────────────────────────
+                FocusSession saved = focusSessionRepository.save(session);
+                successCount++;
+
+                results.add(SyncResultItemDto.builder()
+                        .localId(dto.localId())
+                        .serverId(saved.getId())
+                        .status("SUCCESS")
+                        .build());
+
+                log.info("Bulk sync: localId={} → serverId={} başarıyla kaydedildi.",
+                        dto.localId(), saved.getId());
+
+            } catch (Exception e) {
+                failedCount++;
+                log.error("Bulk sync: localId={} kaydedilemedi. Hata: {}", dto.localId(), e.getMessage(), e);
+
+                results.add(SyncResultItemDto.builder()
+                        .localId(dto.localId())
+                        .serverId(null)
+                        .status("FAILED")
+                        .errorMessage("Oturum kaydedilirken sunucu hatası oluştu: " + e.getMessage())
+                        .build());
+            }
+        }
+
+        log.info("Bulk sync tamamlandı: toplam={}, başarılı={}, başarısız={}",
+                request.sessions().size(), successCount, failedCount);
+
+        return BulkSyncResponseDto.builder()
+                .totalReceived(request.sessions().size())
+                .successfullySynced(successCount)
+                .failedCount(failedCount)
+                .results(results)
+                .build();
+    }
+
+
 
     @Transactional
     public SessionStartResponseDto startSession(SessionStartRequestDto request) {
@@ -288,14 +433,26 @@ public class SessionService {
 
     /**
      * InterruptionRequestDto → Interruption entity dönüşümü.
+     * Enum string'i güvenli parse edilir. Timestamp ve endDate doldurulur.
      */
     private Interruption buildInterruption(InterruptionRequestDto dto, FocusSession session) {
+        InterruptionType type;
+        try {
+            type = dto.type() != null ? InterruptionType.valueOf(dto.type().toUpperCase()) : InterruptionType.NOTIFICATION;
+        } catch (IllegalArgumentException e) {
+            type = InterruptionType.NOTIFICATION; // Bozulmaması için geçerli bir varsayılan ata
+        }
+
+        LocalDateTime ts = dto.timestampUtc() != null ? dto.timestampUtc() : session.getStartTimeUtc();
+        Integer duration = dto.durationSeconds() != null ? dto.durationSeconds() : 0;
+
         return Interruption.builder()
                 .focusSession(session)
-                .interruptionType(dto.type())
+                .interruptionType(type)
                 .appName(dto.appName())
-                .durationSeconds(dto.durationSeconds())
+                .durationSeconds(duration)
                 .recoveryTimeSeconds(dto.recoveryTimeSeconds())
+                .timestampUtc(ts)
                 .build();
     }
 

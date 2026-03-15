@@ -1,6 +1,8 @@
 package com.serhatsgr.focusflow_backend.controller;
 
 import com.serhatsgr.focusflow_backend.dto.ApiSuccess;
+import com.serhatsgr.focusflow_backend.dto.BulkSyncRequestDto;
+import com.serhatsgr.focusflow_backend.dto.BulkSyncResponseDto;
 import com.serhatsgr.focusflow_backend.dto.SessionCompleteRequestDto;
 import com.serhatsgr.focusflow_backend.dto.SessionCompleteResponseDto;
 import com.serhatsgr.focusflow_backend.dto.SessionStartRequestDto;
@@ -8,10 +10,12 @@ import com.serhatsgr.focusflow_backend.dto.SessionStartResponseDto;
 import com.serhatsgr.focusflow_backend.dto.SessionStatusUpdateRequestDto;
 import com.serhatsgr.focusflow_backend.dto.SessionSummaryResponseDto;
 import com.serhatsgr.focusflow_backend.dto.SessionTimelineResponseDto;
+import com.serhatsgr.focusflow_backend.entities.User;
 import com.serhatsgr.focusflow_backend.service.SessionService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -109,5 +113,41 @@ public class SessionController {
 
         SessionTimelineResponseDto response = sessionService.getSessionTimeline(sessionId);
         return ResponseEntity.ok(ApiSuccess.of("Kesinti zaman çizelgesi getirildi", response));
+    }
+
+    /**
+     * POST /api/v1/sessions/sync — Toplu Offline Senkronizasyon (200 OK)
+     *
+     * Flutter'ın offline iken biriktirdiği oturumları toplu olarak gönderdiği
+     * "Store-and-Forward" uç noktasıdır.
+     *
+     * Partial Success Prensibi:
+     * Bir oturum hatalıysa yalnızca o oturum FAILED olarak işaretlenir,
+     * diğer oturumların kaydedilmesi engellenmez.
+     *
+     * Yanıt yapısı:
+     * {
+     *   "status": 200,
+     *   "data": {
+     *     "totalReceived": 5,
+     *     "successfullySynced": 4,
+     *     "failedCount": 1,
+     *     "results": [
+     *       { "localId": "uuid-1", "serverId": 42, "status": "SUCCESS" },
+     *       { "localId": "uuid-2", "status": "FAILED", "errorMessage": "..." }
+     *     ]
+     *   }
+     * }
+     */
+    /**
+     * POST /api/v1/sessions/sync — Toplu Offline Senkronizasyon (200 OK)
+     */
+    @PostMapping("/sync")
+    public ResponseEntity<ApiSuccess<BulkSyncResponseDto>> syncSessions(
+            @RequestBody BulkSyncRequestDto request, // <-- BURADAKİ @Valid SİLİNDİ
+            @AuthenticationPrincipal User currentUser) {
+
+        BulkSyncResponseDto response = sessionService.syncOfflineSessions(currentUser, request);
+        return ResponseEntity.ok(ApiSuccess.of("Offline oturumlar senkronize edildi", response));
     }
 }
