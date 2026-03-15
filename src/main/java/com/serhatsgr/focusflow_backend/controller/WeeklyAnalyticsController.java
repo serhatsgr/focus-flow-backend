@@ -41,7 +41,7 @@ public class WeeklyAnalyticsController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate referenceDate) {
 
         String email = principal.getName();
-        WeeklyAiResponseDto response = weeklyAiCoachService.generateWeeklyAnalysis(email, referenceDate);
+        WeeklyAiResponseDto response = weeklyAiCoachService.getOrGenerateWeeklyAnalysis(email, referenceDate);
 
         return ResponseEntity.ok(response);
     }

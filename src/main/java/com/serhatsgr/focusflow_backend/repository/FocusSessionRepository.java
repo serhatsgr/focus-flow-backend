@@ -3,6 +3,8 @@ package com.serhatsgr.focusflow_backend.repository;
 import com.serhatsgr.focusflow_backend.entities.FocusSession;
 import com.serhatsgr.focusflow_backend.entities.SessionStatus;
 import com.serhatsgr.focusflow_backend.entities.User;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -15,6 +17,20 @@ import java.util.UUID;
 
 @Repository
 public interface FocusSessionRepository extends JpaRepository<FocusSession, UUID> {
+
+  /**
+   * Belirli bir zaman aralığında en az 1 oturumu olan kullanıcıları
+   * sayfalamalı (paginated) olarak döner.
+   * Scheduler batch job'ı tarafından kullanılır — RAM'i korur.
+   */
+  @Query("""
+      SELECT DISTINCT fs.user FROM FocusSession fs
+      WHERE fs.startTimeUtc BETWEEN :start AND :end
+      """)
+  Page<User> findDistinctUsersWithSessionsBetween(
+      @Param("start") LocalDateTime start,
+      @Param("end") LocalDateTime end,
+      Pageable pageable);
 
   /**
    * Kullanıcının belirli bir zaman aralığındaki oturumlarını interruptions ile

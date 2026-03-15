@@ -5,8 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.serhatsgr.focusflow_backend.dto.WeeklyAiResponseDto;
 import com.serhatsgr.focusflow_backend.entities.FocusSession;
 import com.serhatsgr.focusflow_backend.entities.User;
+import com.serhatsgr.focusflow_backend.entities.WeeklyAiReport;
 import com.serhatsgr.focusflow_backend.repository.FocusSessionRepository;
 import com.serhatsgr.focusflow_backend.repository.UserRepository;
+import com.serhatsgr.focusflow_backend.repository.WeeklyAiReportRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,6 +22,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -42,6 +45,7 @@ public class WeeklyAiCoachService {
     private final ObjectMapper objectMapper;
     private final FocusSessionRepository focusSessionRepository;
     private final UserRepository userRepository;
+    private final WeeklyAiReportRepository weeklyAiReportRepository;
     private final DailyRuleBasedAnalysisService dailyRuleBasedAnalysisService;
 
     @Value("${ai.coach.api-url}")
@@ -59,10 +63,12 @@ public class WeeklyAiCoachService {
     public WeeklyAiCoachService(ObjectMapper objectMapper,
             FocusSessionRepository focusSessionRepository,
             UserRepository userRepository,
+            WeeklyAiReportRepository weeklyAiReportRepository,
             DailyRuleBasedAnalysisService dailyRuleBasedAnalysisService) {
         this.objectMapper = objectMapper;
         this.focusSessionRepository = focusSessionRepository;
         this.userRepository = userRepository;
+        this.weeklyAiReportRepository = weeklyAiReportRepository;
         this.dailyRuleBasedAnalysisService = dailyRuleBasedAnalysisService;
 
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
@@ -121,7 +127,34 @@ public class WeeklyAiCoachService {
             """;
 
     // ══════════════════════════════════════════════════════════════════════════════
-    // ANA METOD
+    // CACHE-FIRST OKUMA (Controller tarafından çağrılır)
+    // ══════════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Akıllı okuma: Önce DB'den cache kontrol, yoksa anlık LLM üretimi.
+     * Controller bu metodu çağırır — scheduler ise doğrudan generateWeeklyAnalysis() kullanır.
+     */
+    public WeeklyAiResponseDto getOrGenerateWeeklyAnalysis(String email, LocalDate referenceDate) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("Kullanıcı bulunamadı: " + email));
+
+        LocalDate weekStart = referenceDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+
+        // ── Cache kontrol: DB'de rapor var mı? ──
+        Optional<WeeklyAiReport> cached = weeklyAiReportRepository
+                .findByUserIdAndWeekStartDate(user.getId(), weekStart);
+
+        if (cached.isPresent()) {
+            log.info("NEUROCOACH — Cache HIT [user={}, week={}]", user.getId(), weekStart);
+            return mapEntityToDto(cached.get());
+        }
+
+        log.info("NEUROCOACH — Cache MISS [user={}, week={}], anlık üretim başlıyor.", user.getId(), weekStart);
+        return generateWeeklyAnalysis(email, referenceDate);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════════
+    // LLM İLE ANLK ÜRETİM (Scheduler ve cache-miss durumunda çağrılır)
     // ══════════════════════════════════════════════════════════════════════════════
 
     /**
@@ -442,6 +475,23 @@ public class WeeklyAiCoachService {
                 .actionableAdvice(
                         "Yarın sabah ilk iş olarak 25 dakikalık tek bir odak bloğu başlat. " +
                                 "Dopamin döngüsünü tetiklemek için küçük başlamak, hiç başlamamaktan katbekat iyidir.")
+                .build();
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════════
+    // ENTITY ↔ DTO DÖNÜŞÜM
+    // ══════════════════════════════════════════════════════════════════════════════
+
+    /**
+     * DB'deki WeeklyAiReport entity'sini DTO'ya dönüştürür.
+     */
+    private WeeklyAiResponseDto mapEntityToDto(WeeklyAiReport report) {
+        return WeeklyAiResponseDto.builder()
+                .weeklyTheme(report.getTheme())
+                .weeklySummary(report.getSummary())
+                .strengths(report.getStrengths())
+                .weaknesses(report.getWeaknesses())
+                .actionableAdvice(report.getActionableAdvice())
                 .build();
     }
 }
