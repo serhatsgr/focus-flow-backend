@@ -13,6 +13,7 @@ import java.util.List;
 @AllArgsConstructor
 public class DailyReportResponseDto {
     private String dateStr;
+    private Boolean isMidDay;
     private String generalStatus;
     private String generalStatusDetail;
     private List<CognitiveLoadPointDto> graphData;

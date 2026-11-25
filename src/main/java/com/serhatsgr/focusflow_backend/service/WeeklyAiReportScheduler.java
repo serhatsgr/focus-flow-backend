@@ -58,7 +58,8 @@ public class WeeklyAiReportScheduler {
      * 3. Her kullanıcı için: rapor üret → DB'ye kaydet → 3s bekle
      * 4. Sonuç istatistiklerini logla
      */
-    @Scheduled(cron = "0 * * * * *", zone = "Europe/Istanbul")
+    //test @Scheduled(cron = "0 * * * * *", zone = "Europe/Istanbul")
+    @Scheduled(cron = "0 0 23 * * SUN", zone = "Europe/Istanbul")
     public void generateWeeklyReports() {
         LocalDate today = LocalDate.now();
         LocalDate weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));

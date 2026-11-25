@@ -320,8 +320,16 @@ public class SessionService {
                 .sessionId(saved.getId())
                 .actualDurationMinutes(saved.getActualDurationMinutes())
                 .focusScore(saved.getFinalFocusScore() != null
-                        ? (int) Math.round(saved.getFinalFocusScore())
-                        : null)
+                        ? (int) Math.round(saved.getFinalFocusScore()) : null)
+                .attentionScore(saved.getAttentionScore() != null
+                        ? (int) Math.round(saved.getAttentionScore()) : null)
+                .distractionScore(saved.getDistractionScore() != null
+                        ? (int) Math.round(saved.getDistractionScore()) : null)
+                .switchScore(saved.getSwitchScore() != null
+                        ? (int) Math.round(saved.getSwitchScore()) : null)
+                .recoveryScore(saved.getRecoveryScore() != null
+                        ? (int) Math.round(saved.getRecoveryScore()) : null)
+                .aiAnalysisResult(saved.getAiAnalysisResult())
                 .totalInterruptions(saved.getInterruptions().size())
                 .status(saved.getStatus())
                 .build();

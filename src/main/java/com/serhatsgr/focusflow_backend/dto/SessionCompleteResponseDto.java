@@ -25,9 +25,17 @@ public class SessionCompleteResponseDto {
 
     /**
      * Hesaplanan odak skoru (0–100).
-     * Algoritma: 100 - (kesintiSayısı × 5), [0, 100] aralığında sınırlandırılır.
      */
     private Integer focusScore;
+
+    /** Bilişsel Skor Bileşenleri */
+    private Integer attentionScore;
+    private Integer distractionScore;
+    private Integer switchScore;
+    private Integer recoveryScore;
+
+    /** Kural tabanlı üretilen geri bildirim metni */
+    private String aiAnalysisResult;
 
     /** Oturuma bağlı toplam kesinti sayısı. */
     private Integer totalInterruptions;
